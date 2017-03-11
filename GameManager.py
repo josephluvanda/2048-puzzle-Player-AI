@@ -105,6 +105,7 @@ class GameManager:
 
             turn = 1 - turn
         print maxTile
+        return maxTile
 
     def isGameOver(self):
         return not self.grid.canMove()
@@ -131,7 +132,11 @@ def main():
     gameManager.setPlayerAI(playerAI)
     gameManager.setComputerAI(computerAI)
 
-    gameManager.start()
+
+    return gameManager.start()
 
 if __name__ == '__main__':
-    main()
+    scores = []
+    for i in xrange(1, 5):
+        scores.append(main())
+    print scores
