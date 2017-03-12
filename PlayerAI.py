@@ -3,6 +3,7 @@ from BaseAI import BaseAI
 from copy import deepcopy
 import random
 import logging
+import time
 
 
 actionDic = {
@@ -94,15 +95,15 @@ class PlayerAI(BaseAI):
         return node.depth == self.max_thinking_depth
 
     def evaluate(self, node, player):
-        ''' Return max or min tile value for given player '''
+        ''' Returns terminal node evaluation value '''
         val = 0
-        if player == 1:  # max
-            val = node.grid.getMaxTile()
-        else:
-            val = self.get_min_value(node.grid)
-        #return val
-        logging.info("Max tile : %d for Player %d " %( node.grid.getMaxTile(), player))
-        return node.grid.getMaxTile()
+
+        # heuristics
+        ws = weighted_sum(node.grid)
+        ms = monotic_score(node.grid)
+        ets =  empty_tiles_score(node.grid)
+        val = ets - ws + ms
+        return val
 
     def get_min_value(self, grid):
         val = 0
@@ -112,17 +113,69 @@ class PlayerAI(BaseAI):
         return val
 
     def decision(self, grid):
-
+        # Best of the worst. Find a move with lowest outcome penalty
         parent = Node()
         parent.grid = deepcopy(grid)
+        start_time = time.clock()
+
         child, utility = self.maximize(parent, -float('inf'), float('inf'))
 
         if not child:
             logging.error('Move : %s  state %s parent move %s' %( child.move, child.grid.map, child.parent.move ))
-            #return randint(0,4)
 
         logging.info('Expanded nodes by MAX %d by MIN %d' %( self.nodes_expanded_max, self.nodes_expanded_min))
+        logging.info('Elapsed Time :%fs' % ( time.clock() - start_time ))
         return child.move
+
+
+def weighted_sum(grid):
+    ''' ws = w1f1 + w2f2 .... wnfn'''
+    prob = {2: 0.9, 4: 0.1}
+    ws = 0
+    for x in xrange(grid.size):
+        for y in xrange(grid.size):
+            val = grid.map[x][y]
+            if val == 2 or val == 4:
+                ws += prob[val] * val
+    #logging.info("Weighted sum : %d" % ws)
+    return ws
+
+
+def empty_tiles_score(grid):
+    ''' Assign score points according to number of empty cell in a grid '''
+    val = 0
+    points = 10
+    total = 0
+    for x in xrange(grid.size):
+        for y in xrange(grid.size):
+            val += grid.map[x][y]
+            if val == 0:
+                val += points
+    return total
+
+
+def monotic_score(grid):
+    ''' Score points to number of adjacent cells with identical values '''
+    points = 10
+    total = 0
+
+    for x in xrange(grid.size):
+        for y in xrange(grid.size):
+            val = grid.map[x][y]
+            # Left comparison
+            if y - 1 >= 0 and grid.map[x][y-1] == val:
+                total += points
+            # Right comparison
+            if y + 1 < grid.size and grid.map[x][y+1] == val:
+                total += points
+            # Up comparison
+            if x - 1 >= 0 and grid.map[x-1][y] == val:
+                total += points
+            # Down comparison
+            if x + 1 < grid.size and grid.map[x+1][y] == val:
+                total += points
+    return total
+
 
 
 class Node:
@@ -131,7 +184,6 @@ class Node:
         self.grid = None
         self.parent = parent
         self.move = 2  # the move that led to current grid config
-        self.move_str = ''
         self.children = []
 
         if not self.parent:
@@ -139,7 +191,11 @@ class Node:
         else:
             self.depth = parent.depth + 1
 
-        self.utility = 0
+    def sort_moves(self, moves):
+        # move ordering
+        # favor DLRU order
+        order = [1, 2, 3, 0]
+        return sorted(moves, key=lambda d: order.index(d))
 
     def successors(self, player):
         ''' possible states for each player turn '''
@@ -147,6 +203,9 @@ class Node:
         if player == 1:
             # Create new states of each avaible move
             moves = self.grid.getAvailableMoves()
+            #logging.info('Unorder moves :{}'.format(moves))
+
+            #moves = self.sort_moves(moves)
 
             for move in moves:
                 grid = deepcopy(self.grid)
@@ -154,9 +213,7 @@ class Node:
                     grid.move(move)
                     child = Node(self)
                     child.grid = grid
-                    # child.depth = self.depth + 1
-                    #child.move_str = actionDic[move
-                    #logging.info('Max move {}'.format(move))
+                    # logging.info('Max move {}'.format(move))
                     child.move = move
                     self.children.append(child)
 
@@ -182,7 +239,6 @@ class Node:
                     child.grid = grid
                     child.move = cell
                     #logging.info('Min move {}'.format(cell))
-                    #child.depth = self.depth + 1
                     self.children.append(child)
 
             return self.children

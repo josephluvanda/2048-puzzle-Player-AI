@@ -137,6 +137,6 @@ def main():
 
 if __name__ == '__main__':
     scores = []
-    for i in xrange(1, 5):
+    for i in xrange(5):
         scores.append(main())
     print scores
